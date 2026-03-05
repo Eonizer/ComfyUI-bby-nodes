@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a ComfyUI custom node pack (`bby_nodes`) living at `custom_nodes/bby_nodes/` inside a ComfyUI installation. ComfyUI loads it automatically on startup by scanning for `NODE_CLASS_MAPPINGS` in Python files.
+This is a ComfyUI custom node pack (`bby_nodes`) living at `custom_nodes/ComfyUI-bby-nodes/` inside a ComfyUI installation. ComfyUI loads it automatically on startup by scanning for `NODE_CLASS_MAPPINGS` in Python files.
 
 ## ComfyUI Custom Node Conventions
 
@@ -27,7 +27,7 @@ Widget options for `STRING`: `{"multiline": True/False, "default": "..."}`
 ## File Structure
 
 ```
-bby_nodes/
+ComfyUI-bby-nodes/
   __init__.py          # Entry point: aggregates all node mappings, exports NODE_CLASS_MAPPINGS / NODE_DISPLAY_NAME_MAPPINGS / __all__
   pyproject.toml       # Project metadata + [tool.comfy] section for Comfy Registry
   tag_filter_node.py   # Node class + per-module TAG_FILTER_CLASS_MAPPINGS / TAG_FILTER_DISPLAY_NAME_MAPPINGS
