@@ -1,0 +1,13 @@
+[project]
+name = "bby_nodes"
+description = "Custom utility nodes for ComfyUI"
+version = "0.1.0"
+
+[project.urls]
+Repository = "https://github.com/bby/bby_nodes"
+# Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "bby"
+DisplayName = "bby_nodes"
+Icon = ""
