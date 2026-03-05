@@ -15,7 +15,7 @@ class TagFilterNode:
             }
         }
 
-    CATEGORY = "utils/text"
+    CATEGORY = "bbyNodes"
     RETURN_TYPES = ("STRING", "STRING",)
     RETURN_NAMES = ("filtered_tags", "missing_tags",)
     FUNCTION = "filter_tags"
