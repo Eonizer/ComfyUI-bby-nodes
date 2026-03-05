@@ -4,7 +4,7 @@ description = "Custom utility nodes for ComfyUI"
 version = "0.1.0"
 
 [project.urls]
-Repository = "https://github.com/bby/bby_nodes"
+Repository = "https://github.com/Eonizer/ComfyUI-bby-nodes"
 # Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
