@@ -11,6 +11,7 @@ Code picks the concepts, the LLM only writes the prompt.
                     pin:           type a value to force it (overrides the list)
                     file:          pick a .txt from the lists/ folder (replaces the items box)
                     file_path:     or type a path to a .txt anywhere (overrides file)
+                    chance:        percent chance the concept is used at all (seed-driven)
   Prompt Builder    turns the chain into user_prompt + system_prompt strings
                     for any LLM node (e.g. "OpenAI API - Chat Completion").
   Aspect Ratio      reads an [AR:2:3] tag from the LLM reply, outputs the matching
@@ -122,6 +123,9 @@ class ConceptList:
                 "file_path": ("STRING", {"default": "",
                                          "tooltip": "Optional: full path to a .txt list anywhere, e.g. a network share "
                                                     "(\\\\server\\share\\subjects.txt). Overrides the file dropdown."}),
+                "chance": ("INT", {"default": 100, "min": 0, "max": 100, "step": 1,
+                                   "tooltip": "Percent chance this concept is used at all (rolled from the seed, "
+                                              "so 'fixed' keeps the same outcome). 100 = always, 0 = never."}),
             },
             "optional": {
                 "concepts": ("CONCEPTS",),
@@ -142,11 +146,13 @@ class ConceptList:
         return ""
 
     def run(self, name, items, min_count, max_count, enabled, seed, pin, file=NO_FILE, file_path="",
-            concepts=None):
+            chance=100, concepts=None):
         chain = list(concepts) if concepts else []
         if not enabled:
             return (chain, "")
         name = name.strip() or "concept"
+        if random.Random(f"{name}:{seed}:chance").random() * 100 >= chance:
+            return (chain, "")
         if pin.strip():
             picks = [pin.strip()]
         else:
