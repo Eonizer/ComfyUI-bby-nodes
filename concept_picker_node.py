@@ -149,10 +149,10 @@ class ConceptList:
             chance=100, concepts=None):
         chain = list(concepts) if concepts else []
         if not enabled:
-            return (chain, "")
+            return self._result(chain, "")
         name = name.strip() or "concept"
         if random.Random(f"{name}:{seed}:chance").random() * 100 >= chance:
-            return (chain, "")
+            return self._result(chain, "")
         if pin.strip():
             picks = [pin.strip()]
         else:
@@ -161,12 +161,50 @@ class ConceptList:
                 items = _read_file(path)
             parsed = _parse_items(items)
             if not parsed:
-                return (chain, "")
+                return self._result(chain, "")
             picks = _pick(name, parsed, seed, min_count, max_count)
             if not picks:
-                return (chain, "")
+                return self._result(chain, "")
         chain.append((name, picks))
-        return (chain, ", ".join(picks))
+        return self._result(chain, ", ".join(picks))
+
+    @staticmethod
+    def _result(chain, picked):
+        # "ui" is shown in the node's preview box by web/concept_list.js.
+        return {"ui": {"picked": [picked]}, "result": (chain, picked)}
+
+
+PREVIEW_LIMIT = 500
+
+
+def _preview(file, file_path):
+    """What web/concept_list.js shows in the node's preview box."""
+    path = _file_path(file, file_path)
+    if not path:
+        return {"path": None, "items": [], "total": 0}
+    if not path.lower().endswith(".txt"):
+        raise ValueError(f"Concept List: only .txt lists can be previewed: {path}")
+    items = _parse_items(_read_file(path))
+    return {"path": path, "items": items[:PREVIEW_LIMIT], "total": len(items)}
+
+
+try:
+    import asyncio
+
+    from aiohttp import web
+    from server import PromptServer
+
+    @PromptServer.instance.routes.get("/bby_nodes/concept_list/preview")
+    async def _preview_route(request):
+        q = request.rel_url.query
+        try:
+            # Off the event loop: network shares can be slow.
+            data = await asyncio.to_thread(_preview, q.get("file", NO_FILE), q.get("file_path", ""))
+        except Exception as e:
+            data = {"error": str(e)}
+        return web.json_response(data)
+except (ImportError, AttributeError):
+    pass  # not running inside ComfyUI
 
 
 class ConceptPromptBuilder:
