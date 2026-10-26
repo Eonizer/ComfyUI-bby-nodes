@@ -7,6 +7,7 @@ Code picks the concepts, the LLM only writes the prompt.
                     seed control:  fixed     = locked (same pick every run)
                                    randomize = new random pick every run
                                    increment = walks the whole list, no repeats
+                    min/max count: how many items to pick; the seed picks a count in range
                     pin:           type a value to force it (overrides the list)
   Prompt Builder    turns the chain into user_prompt + system_prompt strings
                     for any LLM node (e.g. "OpenAI API - Chat Completion").
@@ -36,15 +37,20 @@ def _parse_items(text):
     return items
 
 
-def _pick(name, items, seed, count):
+def _pick(name, items, seed, min_count, max_count):
     """Deterministic pick: same seed -> same result (so 'fixed' = locked).
     Items are put in a stable shuffled order, and the seed selects a position,
-    so 'increment' goes through every item once before repeating."""
+    so 'increment' goes through every item once before repeating.
+    The count is drawn from [min_count, max_count] using the seed as well."""
     order = items[:]
     random.Random(zlib.crc32(name.encode("utf-8"))).shuffle(order)
     n = len(order)
-    count = max(1, min(count, n))
-    start = (seed * count) % n
+    lo, hi = sorted((min_count, max_count))
+    hi = max(0, min(hi, n))
+    lo = max(0, min(lo, hi))
+    count = random.Random(f"{name}:{seed}").randint(lo, hi)
+    # Step by max so consecutive seeds never overlap, whatever count was drawn.
+    start = (seed * max(hi, 1)) % n
     return [order[(start + i) % n] for i in range(count)]
 
 
@@ -58,8 +64,12 @@ class ConceptList:
                     "multiline": True,
                     "default": "an old lighthouse keeper\na fox made of paper\na lone astronaut\ntwin dancers",
                 }),
-                "count": ("INT", {"default": 1, "min": 1, "max": 20,
-                                  "tooltip": "How many different items to pick from this list."}),
+                "min_count": ("INT", {"default": 1, "min": 0, "max": 20,
+                                      "tooltip": "Fewest different items to pick from this list "
+                                                 "(0 = this concept may be left out)."}),
+                "max_count": ("INT", {"default": 1, "min": 0, "max": 20,
+                                      "tooltip": "Most different items to pick. The count is chosen "
+                                                 "by the seed; set min = max for a fixed count."}),
                 "enabled": ("BOOLEAN", {"default": True}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF,
                                  "control_after_generate": True,
@@ -77,7 +87,7 @@ class ConceptList:
     FUNCTION = "run"
     CATEGORY = "bbyNodes"
 
-    def run(self, name, items, count, enabled, seed, pin, concepts=None):
+    def run(self, name, items, min_count, max_count, enabled, seed, pin, concepts=None):
         chain = list(concepts) if concepts else []
         if not enabled:
             return (chain, "")
@@ -88,7 +98,9 @@ class ConceptList:
             parsed = _parse_items(items)
             if not parsed:
                 return (chain, "")
-            picks = _pick(name, parsed, seed, count)
+            picks = _pick(name, parsed, seed, min_count, max_count)
+            if not picks:
+                return (chain, "")
         chain.append((name, picks))
         return (chain, ", ".join(picks))
 
