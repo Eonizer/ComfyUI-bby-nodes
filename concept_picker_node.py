@@ -9,6 +9,8 @@ Code picks the concepts, the LLM only writes the prompt.
                                    increment = walks the whole list, no repeats
                     min/max count: how many items to pick; the seed picks a count in range
                     pin:           type a value to force it (overrides the list)
+                    file:          pick a .txt from the lists/ folder (replaces the items box)
+                    file_path:     or type a path to a .txt anywhere (overrides file)
   Prompt Builder    turns the chain into user_prompt + system_prompt strings
                     for any LLM node (e.g. "OpenAI API - Chat Completion").
   Aspect Ratio      reads an [AR:2:3] tag from the LLM reply, outputs the matching
@@ -16,9 +18,13 @@ Code picks the concepts, the LLM only writes the prompt.
 """
 
 import math
+import os
 import random
 import re
 import zlib
+
+LISTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lists")
+NO_FILE = "(none)"
 
 DEFAULT_SYSTEM = """You write one image-generation prompt.
 Rules:
@@ -35,6 +41,38 @@ def _parse_items(text):
         if line and not line.startswith("#"):
             items.append(line)
     return items
+
+
+def _list_files():
+    """All .txt files under lists/ (subfolders included), as forward-slash relative paths."""
+    files = []
+    for root, _, names in os.walk(LISTS_DIR):
+        for fname in names:
+            if fname.lower().endswith(".txt"):
+                rel = os.path.relpath(os.path.join(root, fname), LISTS_DIR)
+                files.append(rel.replace(os.sep, "/"))
+    return [NO_FILE] + sorted(files, key=str.lower)
+
+
+def _file_path(file, file_path=""):
+    """file_path (typed by the user, any location) wins over the lists/ dropdown."""
+    typed = os.path.expandvars(os.path.expanduser(file_path.strip().strip('"').strip("'")))
+    if typed:
+        # Relative paths are taken from the lists/ folder.
+        return os.path.abspath(os.path.join(LISTS_DIR, typed))
+    if not file or file == NO_FILE:
+        return None
+    path = os.path.abspath(os.path.join(LISTS_DIR, file))
+    if os.path.commonpath([path, LISTS_DIR]) != LISTS_DIR:
+        raise ValueError(f"Concept List: '{file}' is outside the lists folder.")
+    return path
+
+
+def _read_file(path):
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Concept List: list file not found: {path}")
+    with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
+        return f.read()
 
 
 def _pick(name, items, seed, min_count, max_count):
@@ -76,6 +114,14 @@ class ConceptList:
                                  "tooltip": "fixed = locked, randomize = new pick each run, increment = no repeats"}),
                 "pin": ("STRING", {"default": "",
                                    "tooltip": "Optional: type a value to force it, ignoring the list."}),
+                # Kept last so saved workflows' widget values don't shift.
+                "file": (_list_files(), {"default": NO_FILE,
+                                         "tooltip": "Load items from a .txt file in the node pack's lists/ folder "
+                                                    "(one per line, # = comment). Replaces the items box. "
+                                                    "Press R in ComfyUI to refresh after adding files."}),
+                "file_path": ("STRING", {"default": "",
+                                         "tooltip": "Optional: full path to a .txt list anywhere, e.g. a network share "
+                                                    "(\\\\server\\share\\subjects.txt). Overrides the file dropdown."}),
             },
             "optional": {
                 "concepts": ("CONCEPTS",),
@@ -87,7 +133,16 @@ class ConceptList:
     FUNCTION = "run"
     CATEGORY = "bbyNodes"
 
-    def run(self, name, items, min_count, max_count, enabled, seed, pin, concepts=None):
+    @classmethod
+    def IS_CHANGED(cls, file=NO_FILE, file_path="", **kwargs):
+        # Re-run when the selected file is edited on disk.
+        path = _file_path(file, file_path)
+        if path and os.path.isfile(path):
+            return os.path.getmtime(path)
+        return ""
+
+    def run(self, name, items, min_count, max_count, enabled, seed, pin, file=NO_FILE, file_path="",
+            concepts=None):
         chain = list(concepts) if concepts else []
         if not enabled:
             return (chain, "")
@@ -95,6 +150,9 @@ class ConceptList:
         if pin.strip():
             picks = [pin.strip()]
         else:
+            path = _file_path(file, file_path)
+            if path:
+                items = _read_file(path)
             parsed = _parse_items(items)
             if not parsed:
                 return (chain, "")
