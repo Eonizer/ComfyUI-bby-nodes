@@ -31,6 +31,7 @@ ComfyUI-bby-nodes/
   __init__.py          # Entry point: aggregates all node mappings, exports NODE_CLASS_MAPPINGS / NODE_DISPLAY_NAME_MAPPINGS / __all__
   pyproject.toml       # Project metadata + [tool.comfy] section for Comfy Registry
   tag_filter_node.py   # Node class + per-module TAG_FILTER_CLASS_MAPPINGS / TAG_FILTER_DISPLAY_NAME_MAPPINGS
+  concept_picker_node.py  # ConceptList / ConceptPromptBuilder / AspectRatioFromText + CONCEPT_PICKER_* mappings
 ```
 
 **Pattern for adding a new node:** create a new `<name>_node.py` with the class and `<NAME>_CLASS_MAPPINGS` / `<NAME>_DISPLAY_NAME_MAPPINGS` dicts, then import and merge them in `__init__.py`.
@@ -44,3 +45,6 @@ ComfyUI is launched from `/c/sd/comfy_dr/` (see `start.bat` / `start_m.bat`).
 ## Current Nodes
 
 - **`TagFilterNode`** (`tag_filter_node.py`) — Filters a comma/newline-separated list of input tags against a reference tag list. Outputs `filtered_tags` (matched) and `missing_tags` (unmatched). Supports `exact` and `partial` match modes, case sensitivity toggle, and underscore-stripping.
+- **`ConceptList`** (`concept_picker_node.py`) — Deterministically picks `count` items from a list (seed-driven; `increment` cycles without repeats) and appends `(name, picks)` to a chainable `CONCEPTS` list. `pin` forces a value.
+- **`ConceptPromptBuilder`** (`concept_picker_node.py`) — Turns a `CONCEPTS` chain into `user_prompt` / `system_prompt` strings for an LLM node.
+- **`AspectRatioFromText`** (`concept_picker_node.py`) — Parses an `[AR:w:h]` tag from text, snaps to the nearest "Resolution (CRT)" ratio, strips the tag, and outputs width/height. `CRT_RATIOS` must match that node's dropdown exactly.
