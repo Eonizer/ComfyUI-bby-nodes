@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111214">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>ComfyUI Phone</title>
+<style>
+  :root {
+    --bg: #111214; --panel: #1b1d21; --line: #2c2f35; --text: #e8e9eb; --dim: #8b8f97;
+    --accent: #3d8bfd; --accent-press: #2f6fd0; --ok: #3fb950; --bad: #f85149; --warn: #d29922;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; min-height: 100dvh; }
+
+  header { display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+    padding-top: max(12px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; font-weight: 600; margin: 0; flex: 1; }
+  #dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warn); flex: none; }
+  #dot.ok { background: var(--ok); } #dot.bad { background: var(--bad); }
+  header a { color: var(--dim); font-size: 14px; text-decoration: none; }
+
+  main { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 14px;
+    padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+
+  .row { display: flex; gap: 8px; }
+  select, .icon-btn { height: 48px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--text); font-size: 16px; }
+  select { flex: 1; min-width: 0; padding: 0 12px; }
+  .icon-btn { width: 48px; flex: none; font-size: 20px; }
+  .icon-btn:active { background: var(--line); }
+
+  #status { color: var(--dim); font-size: 14px; min-height: 20px; word-break: break-word; }
+  #status.err { color: var(--bad); white-space: pre-wrap; }
+
+  #progress { display: none; flex-direction: column; gap: 6px; }
+  #progress.on { display: flex; }
+  #bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  #bar > div { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+  #prog-text { font-size: 13px; color: var(--dim); display: flex; justify-content: space-between; gap: 8px; }
+
+  #preview { display: none; width: 100%; border-radius: 10px; background: var(--panel); }
+  #preview.on { display: block; }
+
+  #gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  #gallery .item { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--panel); }
+  #gallery img, #gallery video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #gallery .item.big { grid-column: 1 / -1; aspect-ratio: auto; }
+  #gallery .item.big img, #gallery .item.big video { height: auto; object-fit: contain; }
+  #gallery .item.text { grid-column: 1 / -1; aspect-ratio: auto; padding: 10px 12px; border: 1px solid var(--line); }
+  #gallery .item.text b { display: block; font-size: 12px; color: var(--dim); font-weight: 500; margin-bottom: 4px; }
+  #gallery .item.text pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 14px/1.45 inherit;
+    font-family: inherit; max-height: 40vh; overflow: auto; }
+  #gallery-head { display: none; justify-content: space-between; align-items: center; color: var(--dim); font-size: 14px; }
+  #gallery-head.on { display: flex; }
+  #gallery-head button { background: none; border: 0; color: var(--dim); font-size: 14px; padding: 4px; }
+
+  footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--bg) 30%);
+    display: flex; gap: 10px; }
+  #run { flex: 1; height: 64px; border: 0; border-radius: 14px; background: var(--accent); color: #fff;
+    font-size: 20px; font-weight: 600; letter-spacing: .3px; }
+  #run:active { background: var(--accent-press); }
+  #run:disabled { background: var(--line); color: var(--dim); }
+  #run small { display: block; font-size: 12px; font-weight: 400; opacity: .8; }
+  #stop { display: none; width: 64px; height: 64px; border: 1px solid var(--line); border-radius: 14px;
+    background: var(--panel); color: var(--bad); font-size: 22px; }
+  #stop.on { display: block; }
+
+  #viewer { position: fixed; inset: 0; background: rgba(0,0,0,.94); display: none; z-index: 10;
+    align-items: center; justify-content: center; }
+  #viewer.on { display: flex; }
+  #viewer img, #viewer video { max-width: 100%; max-height: 100%; }
+  #viewer a { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); right: 16px; color: var(--text);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; text-decoration: none; font-size: 15px; }
+
+  /* The real ComfyUI frontend, used to turn saved workflows into prompts and queue them. */
+  #comfy { position: fixed; left: -10000px; top: 0; width: 1024px; height: 768px; border: 0; visibility: hidden; }
+</style>
+</head>
+<body>
+<header>
+  <span id="dot" title="connection"></span>
+  <h1>ComfyUI</h1>
+  <a href="/" target="_blank">Full UI ↗</a>
+</header>
+
+<main>
+  <div class="row">
+    <select id="workflow" aria-label="Workflow"><option>Loading workflows…</option></select>
+    <button class="icon-btn" id="refresh" title="Reload workflow from server">↻</button>
+  </div>
+  <div id="status">Starting ComfyUI…</div>
+  <div id="progress">
+    <div id="bar"><div></div></div>
+    <div id="prog-text"><span id="prog-node"></span><span id="prog-num"></span></div>
+  </div>
+  <img id="preview" alt="">
+  <div id="gallery-head"><span>Results</span><button id="clear">Clear</button></div>
+  <div id="gallery"></div>
+</main>
+
+<footer>
+  <button id="run" disabled>Run</button>
+  <button id="stop" title="Interrupt">■</button>
+</footer>
+
+<div id="viewer"></div>
+<iframe id="comfy" src="/" aria-hidden="true" tabindex="-1"></iframe>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    dot: $("dot"), workflow: $("workflow"), refresh: $("refresh"), status: $("status"),
+    progress: $("progress"), bar: $("bar").firstElementChild, progNode: $("prog-node"), progNum: $("prog-num"),
+    preview: $("preview"), gallery: $("gallery"), galleryHead: $("gallery-head"), clear: $("clear"),
+    run: $("run"), stop: $("stop"), viewer: $("viewer"), frame: $("comfy"),
+  };
+
+  const LS_WORKFLOW = "bby_phone.workflow";
+  const LS_RESULTS = "bby_phone.results";
+  // Put this in a node's title (desktop UI) to make it the only result shown here.
+  // On a subgraph node it marks every output inside it.
+  const MARK = /\s*(\[phone\]|📱)\s*/i;
+  const cleanTitle = (t) => (t ?? "").replace(MARK, " ").trim();
+  const MAX_RESULTS = 40;
+
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+
+  let app = null, api = null;
+  let loadedPath = null;          // workflow path currently loaded in the frame
+  let loadedActive = null;        // frame's active workflow right after we loaded it
+  let loading = null;            // in-flight load promise
+  const prompts = new Map();      // prompt_id -> API prompt (for node titles)
+  let pending = 0;                // our prompts queued but not finished
+  let currentPrompt = null;
+  let results = store.get(LS_RESULTS, []);
+
+  function setStatus(text, err = false) {
+    els.status.textContent = text;
+    els.status.classList.toggle("err", err);
+  }
+
+  function updateRunButton() {
+    const ready = app && els.workflow.value && !loading;
+    els.run.disabled = !ready;
+    els.run.innerHTML = pending > 0 ? `Run <small>${pending} queued</small>` : "Run";
+    els.stop.classList.toggle("on", pending > 0);
+  }
+
+  // ---------- workflows ----------
+
+  async function listWorkflows() {
+    const r = await fetch("/api/userdata?dir=workflows&recurse=true&split=false&full_info=true");
+    if (r.status === 404) return [];
+    if (!r.ok) throw new Error(`workflow list: HTTP ${r.status}`);
+    const files = await r.json();
+    return files
+      .map((f) => (typeof f === "string" ? f : f.path).replace(/\\/g, "/"))
+      .filter((p) => p.toLowerCase().endsWith(".json"))
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
+  }
+
+  async function fillWorkflowSelect() {
+    const paths = await listWorkflows();
+    const want = els.workflow.value && els.workflow.value !== "Loading workflows…" ? els.workflow.value : store.get(LS_WORKFLOW, "");
+    els.workflow.innerHTML = "";
+    if (!paths.length) {
+      els.workflow.innerHTML = "<option value=''>No saved workflows</option>";
+      return;
+    }
+    for (const p of paths) {
+      const o = document.createElement("option");
+      o.value = p;
+      o.textContent = p.replace(/\.json$/i, "");
+      els.workflow.appendChild(o);
+    }
+    els.workflow.value = paths.includes(want) ? want : paths[0];
+  }
+
+  async function fetchWorkflow(path) {
+    const r = await fetch("/api/userdata/" + encodeURIComponent("workflows/" + path), { cache: "no-store" });
+    if (!r.ok) throw new Error(`load ${path}: HTTP ${r.status}`);
+    return r.json();
+  }
+
+  function activePath() {
+    try { return app.extensionManager?.workflow?.activeWorkflow?.path ?? null; } catch { return null; }
+  }
+
+  // With "control after generate", a freshly loaded workflow still holds the seed its
+  // last run used, so the first Run would just return the cached result. Step every
+  // control widget once, as if that run had just been queued here.
+  function stepSeedControls() {
+    let mode;
+    try { mode = app.extensionManager?.setting?.get("Comfy.WidgetControlMode"); } catch {}
+    if (mode && mode !== "after") return;
+    // Seeds promoted out of subgraphs are stepped separately (mirrors app.queuePrompt).
+    const promoted = els.frame.contentWindow.comfyAPI?.promotedWidgetControl?.applyPromotedWidgetControl;
+    const visit = (graph, seen) => {
+      if (!graph || seen.has(graph)) return;
+      seen.add(graph);
+      for (const node of graph._nodes ?? graph.nodes ?? []) {
+        for (const w of node.widgets ?? []) {
+          if (w.name === "control_after_generate" && w.afterQueued) {
+            try { w.afterQueued(); } catch {}
+          }
+        }
+        try { promoted?.(node, "afterQueued"); } catch {}
+        visit(node.subgraph, seen);
+      }
+    };
+    visit(app.rootGraph, new Set());
+  }
+
+  function markedTitles() {
+    const titles = [];
+    const visit = (graph, seen) => {
+      if (!graph || seen.has(graph)) return;
+      seen.add(graph);
+      for (const node of graph._nodes ?? graph.nodes ?? []) {
+        if (MARK.test(node.title ?? "")) titles.push(cleanTitle(node.title));
+        else visit(node.subgraph, seen);
+      }
+    };
+    visit(app.rootGraph, new Set());
+    return titles;
+  }
+
+  // Execution ids ("12", or "18:7" inside subgraph 18) of the prompt's marked outputs.
+  function markedNodes(output) {
+    const set = new Set();
+    for (const [id, n] of Object.entries(output)) {
+      if (MARK.test(n._meta?.title ?? "")) { set.add(id); continue; }
+      let graph = app.rootGraph;
+      for (const part of id.split(":").slice(0, -1)) {
+        const container = graph?.getNodeById?.(part);
+        if (!container) break;
+        if (MARK.test(container.title ?? "")) { set.add(id); break; }
+        graph = container.subgraph;
+      }
+    }
+    return set;
+  }
+
+  function loadSelected() {
+    const path = els.workflow.value;
+    if (!app || !path) return Promise.resolve();
+    store.set(LS_WORKFLOW, path);
+    const p = (async () => {
+      setStatus(`Loading ${path}…`);
+      try {
+        const data = await fetchWorkflow(path);
+        await app.loadGraphData(data, true, true, path);
+        stepSeedControls();
+        loadedPath = path;
+        loadedActive = activePath();
+        const marked = markedTitles();
+        setStatus(marked.length ? `Ready · showing ${marked.join(", ")}` : "Ready");
+      } catch (e) {
+        loadedPath = null;
+        setStatus(`Could not load workflow: ${e.message || e}`, true);
+      }
+    })();
+    loading = p;
+    updateRunButton();
+    return p.finally(() => { if (loading === p) loading = null; updateRunButton(); });
+  }
+
+  // ---------- running ----------
+
+  function formatQueueError(e) {
+    const resp = e?.response;
+    const lines = [];
+    if (resp?.error?.message) lines.push(resp.error.message + (resp.error.details ? `: ${resp.error.details}` : ""));
+    for (const [id, ne] of Object.entries(resp?.node_errors ?? {})) {
+      for (const err of ne.errors ?? []) lines.push(`• ${ne.class_type} #${id}: ${err.message}${err.details ? ` (${err.details})` : ""}`);
+    }
+    return lines.length ? lines.join("\n") : String(e?.message || e);
+  }
+
+  // Wrap the frame's graphToPrompt / api.queuePrompt so we learn the prompt id or the
+  // error; the frontend itself only reports them in dialogs we keep hidden.
+  let lastQueue = null;
+  function hookQueue() {
+    const origBuild = app.graphToPrompt.bind(app);
+    app.graphToPrompt = async (...args) => {
+      try {
+        return await origBuild(...args);
+      } catch (e) {
+        lastQueue = { ok: false, error: e, build: true };
+        throw e;
+      }
+    };
+
+    const orig = api.queuePrompt.bind(api);
+    api.queuePrompt = async (number, data, ...rest) => {
+      try {
+        const res = await orig(number, data, ...rest);
+        if (res?.prompt_id) {
+          const output = data?.output ?? {};
+          prompts.set(res.prompt_id, { output, marked: markedNodes(output) });
+        }
+        lastQueue = { ok: true, res };
+        return res;
+      } catch (e) {
+        lastQueue = { ok: false, error: e };
+        throw e;
+      }
+    };
+  }
+
+  async function run() {
+    if (els.run.disabled) return;
+    if (loading) await loading;
+    // Reload only if something else replaced our graph: reloading resets seed widgets.
+    if (loadedPath !== els.workflow.value || activePath() !== loadedActive) {
+      await loadSelected();
+      if (!loadedPath) return;
+    }
+    els.run.disabled = true;
+    lastQueue = null;
+    try {
+      await app.queuePrompt(0, 1);
+    } catch (e) {
+      lastQueue ??= { ok: false, error: e };
+    }
+    if (lastQueue?.ok) {
+      pending++;
+      setStatus("Queued");
+    } else if (lastQueue?.build) {
+      setStatus("Workflow can't be converted to a prompt:\n" + (lastQueue.error?.message || lastQueue.error), true);
+    } else if (lastQueue) {
+      setStatus("Failed to queue:\n" + formatQueueError(lastQueue.error), true);
+    } else {
+      setStatus("Nothing was queued. Open the full UI to check the workflow.", true);
+    }
+    updateRunButton();
+  }
+
+  function nodeTitle(promptId, nodeId) {
+    const n = prompts.get(promptId)?.output[nodeId];
+    return n ? (cleanTitle(n._meta?.title) || n.class_type) : nodeId ? `Node ${nodeId}` : "";
+  }
+
+  function finish(promptId, msg, err = false) {
+    if (!prompts.has(promptId)) return;
+    prompts.delete(promptId);
+    pending = Math.max(0, pending - 1);
+    if (currentPrompt === promptId) currentPrompt = null;
+    if (!pending) {
+      els.progress.classList.remove("on");
+      els.preview.classList.remove("on");
+    }
+    setStatus(msg, err);
+    updateRunButton();
+  }
+
+  function attachEvents() {
+    api.addEventListener("status", () => { els.dot.className = "ok"; });
+    api.addEventListener("reconnecting", () => { els.dot.className = "bad"; });
+    api.addEventListener("reconnected", () => { els.dot.className = "ok"; });
+
+    api.addEventListener("execution_start", ({ detail }) => {
+      if (!prompts.has(detail.prompt_id)) return;
+      currentPrompt = detail.prompt_id;
+      els.progress.classList.add("on");
+      els.bar.style.width = "0";
+      els.progNode.textContent = "Starting…";
+      els.progNum.textContent = "";
+      setStatus("Running");
+    });
+
+    // The frontend passes just the (display) node id here.
+    api.addEventListener("executing", ({ detail }) => {
+      if (!prompts.has(currentPrompt) || detail == null) return;
+      els.progNode.textContent = nodeTitle(currentPrompt, detail);
+      els.progNum.textContent = "";
+      els.bar.style.width = "0";
+    });
+
+    api.addEventListener("progress", ({ detail }) => {
+      if (!prompts.has(detail.prompt_id)) return;
+      els.bar.style.width = `${(100 * detail.value) / Math.max(1, detail.max)}%`;
+      els.progNum.textContent = `${detail.value}/${detail.max}`;
+      els.progNode.textContent = nodeTitle(detail.prompt_id, detail.node);
+    });
+
+    api.addEventListener("b_preview", ({ detail }) => {
+      if (!currentPrompt) return;
+      const old = els.preview.src;
+      els.preview.src = URL.createObjectURL(detail);
+      els.preview.classList.add("on");
+      if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+    });
+
+    api.addEventListener("executed", ({ detail }) => {
+      const info = prompts.get(detail.prompt_id);
+      if (!info) return;
+      const exact = info.marked.size > 0;
+      if (exact && !info.marked.has(String(detail.node)) && !info.marked.has(String(detail.display_node))) return;
+      const out = detail.output ?? {};
+      const files = [...(out.images ?? []), ...(out.gifs ?? []), ...(out.videos ?? [])];
+      if (files.length) addResults(files, detail.prompt_id, exact);
+      const text = (out.text ?? []).filter((t) => typeof t === "string" && t.trim());
+      if (text.length) addText(text.join("\n\n"), nodeTitle(detail.prompt_id, detail.display_node ?? detail.node), detail.prompt_id);
+    });
+
+    api.addEventListener("execution_success", ({ detail }) => finish(detail.prompt_id, "Done"));
+    api.addEventListener("execution_interrupted", ({ detail }) => finish(detail.prompt_id, "Interrupted"));
+    api.addEventListener("execution_error", ({ detail }) =>
+      finish(detail.prompt_id, `Error in ${detail.node_type} #${detail.node_id}:\n${detail.exception_message}`, true));
+  }
+
+  // ---------- results ----------
+
+  function viewUrl(f) {
+    const q = new URLSearchParams({ filename: f.filename, subfolder: f.subfolder ?? "", type: f.type ?? "output" });
+    return "/api/view?" + q;
+  }
+  const isVideo = (name) => /\.(mp4|webm|mov|mkv)$/i.test(name);
+
+  // exact: the files come from a marked node, so show them as-is (previews included).
+  function addResults(files, promptId, exact) {
+    const toResult = (f) => ({ filename: f.filename, subfolder: f.subfolder, type: f.type, prompt_id: promptId, marked: exact });
+    if (exact) return saveResults([...files.map(toResult), ...results]);
+    const saved = files.filter((f) => f.type === "output");
+    // Prefer saved outputs; fall back to previews if that's all the workflow makes.
+    if (saved.length) results = results.filter((r) => !(r.prompt_id === promptId && r.type === "temp"));
+    else if (results.some((r) => r.prompt_id === promptId && r.type === "output")) return;
+    saveResults([...(saved.length ? saved : files).map(toResult), ...results]);
+  }
+
+  function addText(text, title, promptId) {
+    saveResults([{ type: "text", text, title, prompt_id: promptId }, ...results]);
+  }
+
+  function saveResults(list) {
+    results = list.slice(0, MAX_RESULTS);
+    // Temp previews vanish on server restart; broken ones drop out of the gallery on load.
+    store.set(LS_RESULTS, results.filter((r) => r.type !== "temp" || r.marked));
+    renderGallery();
+  }
+
+  function renderGallery() {
+    els.gallery.innerHTML = "";
+    els.galleryHead.classList.toggle("on", results.length > 0);
+    const first = results.find((r) => r.type !== "text");
+    results.forEach((r) => {
+      const div = document.createElement("div");
+      if (r.type === "text") {
+        div.className = "item text";
+        const b = document.createElement("b");
+        b.textContent = r.title || "Text";
+        const pre = document.createElement("pre");
+        pre.textContent = r.text;
+        div.append(b, pre);
+        div.onclick = () => navigator.clipboard?.writeText(r.text).then(() => setStatus("Text copied"), () => {});
+        els.gallery.appendChild(div);
+        return;
+      }
+      div.className = "item" + (r === first ? " big" : "");
+      const url = viewUrl(r);
+      let media;
+      if (isVideo(r.filename)) {
+        media = document.createElement("video");
+        Object.assign(media, { src: url, muted: true, loop: true, playsInline: true, autoplay: r === first });
+      } else {
+        media = document.createElement("img");
+        media.loading = "lazy";
+        media.src = url;
+      }
+      media.onerror = () => div.remove();
+      div.appendChild(media);
+      div.onclick = () => openViewer(r);
+      els.gallery.appendChild(div);
+    });
+  }
+
+  function openViewer(r) {
+    const url = viewUrl(r);
+    els.viewer.innerHTML = "";
+    const media = isVideo(r.filename) ? document.createElement("video") : document.createElement("img");
+    media.src = url;
+    if (media.tagName === "VIDEO") Object.assign(media, { controls: true, autoplay: true, loop: true, playsInline: true });
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.textContent = "Open ↗";
+    a.onclick = (e) => e.stopPropagation();
+    els.viewer.append(media, a);
+    els.viewer.classList.add("on");
+  }
+  els.viewer.onclick = (e) => {
+    if (e.target.tagName === "VIDEO") return;
+    els.viewer.classList.remove("on");
+    els.viewer.innerHTML = "";
+  };
+
+  // ---------- boot ----------
+
+  function waitForApp() {
+    return new Promise((resolve, reject) => {
+      const started = Date.now();
+      const tick = () => {
+        let w;
+        try { w = els.frame.contentWindow; } catch {}
+        const a = w?.app;
+        if (a?.api && a.rootGraph && a.canvas) return resolve(a);
+        if (Date.now() - started > 120000) return reject(new Error("ComfyUI frontend did not start"));
+        setTimeout(tick, 250);
+      };
+      tick();
+    });
+  }
+
+  els.workflow.addEventListener("change", loadSelected);
+  els.refresh.addEventListener("click", async () => {
+    try { await fillWorkflowSelect(); } catch (e) { setStatus(String(e.message || e), true); }
+    loadedPath = null;
+    loadSelected();
+  });
+  els.run.addEventListener("click", run);
+  els.stop.addEventListener("click", () => fetch("/api/interrupt", { method: "POST" }));
+  els.clear.addEventListener("click", () => { results = []; store.set(LS_RESULTS, []); renderGallery(); });
+
+  renderGallery();
+  fillWorkflowSelect().catch((e) => setStatus(String(e.message || e), true)).finally(updateRunButton);
+
+  waitForApp().then(async (a) => {
+    app = a;
+    api = a.api;
+    hookQueue();
+    attachEvents();
+    els.dot.className = "ok";
+    // Let the frontend finish restoring its own last workflow before replacing it.
+    await new Promise((r) => setTimeout(r, 500));
+    await loadSelected();
+  }).catch((e) => {
+    els.dot.className = "bad";
+    setStatus(String(e.message || e), true);
+  });
+})();
+</script>
+</body>
+</html>

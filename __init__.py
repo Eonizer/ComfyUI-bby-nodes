@@ -1,5 +1,6 @@
 from .tag_filter_node import TAG_FILTER_CLASS_MAPPINGS, TAG_FILTER_DISPLAY_NAME_MAPPINGS
 from .concept_picker_node import CONCEPT_PICKER_CLASS_MAPPINGS, CONCEPT_PICKER_DISPLAY_NAME_MAPPINGS
+from . import phone_ui  # noqa: F401  registers the /phone route
 
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
