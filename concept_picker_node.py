@@ -149,10 +149,10 @@ class ConceptList:
             chance=100, concepts=None):
         chain = list(concepts) if concepts else []
         if not enabled:
-            return self._result(chain, "")
+            return self._result(chain, "", "disabled")
         name = name.strip() or "concept"
         if random.Random(f"{name}:{seed}:chance").random() * 100 >= chance:
-            return self._result(chain, "")
+            return self._result(chain, "", "skipped")
         if pin.strip():
             picks = [pin.strip()]
         else:
@@ -161,17 +161,18 @@ class ConceptList:
                 items = _read_file(path)
             parsed = _parse_items(items)
             if not parsed:
-                return self._result(chain, "")
+                return self._result(chain, "", "empty")
             picks = _pick(name, parsed, seed, min_count, max_count)
             if not picks:
                 return self._result(chain, "")
         chain.append((name, picks))
-        return self._result(chain, ", ".join(picks))
+        return self._result(chain, ", ".join(picks), "pinned" if pin.strip() else "")
 
     @staticmethod
-    def _result(chain, picked):
+    def _result(chain, picked, status=""):
         # "ui" is shown in the node's preview box by web/concept_list.js.
-        return {"ui": {"picked": [picked]}, "result": (chain, picked)}
+        # status: "" (normal), "pinned", "disabled", "skipped" (chance roll), "empty" (no items).
+        return {"ui": {"picked": [picked], "status": [status]}, "result": (chain, picked)}
 
 
 PREVIEW_LIMIT = 500
