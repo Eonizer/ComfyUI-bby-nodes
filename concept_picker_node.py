@@ -78,18 +78,37 @@ def _read_file(path):
 
 def _pick(name, items, seed, min_count, max_count):
     """Deterministic pick: same seed -> same result (so 'fixed' = locked).
-    Items are put in a stable shuffled order, and the seed selects a position,
-    so 'increment' goes through every item once before repeating.
+    Items are put in a stable shuffled order, and the seed selects a window
+    start, so 'increment' goes through every item before repeating.
     The count is drawn from [min_count, max_count] using the seed as well."""
     order = items[:]
     random.Random(zlib.crc32(name.encode("utf-8"))).shuffle(order)
     n = len(order)
+    if n == 0:
+        return []
     lo, hi = sorted((min_count, max_count))
     hi = max(0, min(hi, n))
     lo = max(0, min(lo, hi))
     count = random.Random(f"{name}:{seed}").randint(lo, hi)
-    # Step by max so consecutive seeds never overlap, whatever count was drawn.
-    start = (seed * max(hi, 1)) % n
+    # Window step, chosen per list size: >= max_count so consecutive seeds
+    # never overlap, <= n - max_count so the window doesn't wrap into the
+    # previous run, and coprime with n so seeds visit every start position
+    # before repeating (a plain 'max_count' step cycles early when it shares
+    # a divisor with n, e.g. 12 items / max 4 -> only 3 distinct picks).
+    # Those three can't always hold at once (window bigger than half the
+    # list); then coverage wins and we keep the overlap margin as large
+    # as possible.
+    if n == 1:
+        step = 1
+    else:
+        def margin(s):
+            gap = s % n
+            return 0 if gap == 0 else min(gap, n - gap)
+
+        best = max((s for s in range(1, n) if math.gcd(s, n) == 1), key=margin)
+        step = next((s for s in range(max(hi, 1), n - hi + 1) if math.gcd(s, n) == 1),
+                    best)
+    start = (seed * step) % n
     return [order[(start + i) % n] for i in range(count)]
 
 
